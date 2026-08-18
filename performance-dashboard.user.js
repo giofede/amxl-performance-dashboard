@@ -4,8 +4,8 @@
 // @description  Full-screen dashboard with per-week targets, planned TPH, FC/SC/IXD, display toggles, historical lookup. v2.7: removed STM3/DTM3 (closed sites).
 // @author       PoC Draft
 // @match        https://fclm-portal.amazon.com/*
-// @updateURL    https://code.amazon.com/packages/AMXL_Internal_Scripts/blobs/mainline/--/performance-dashboard.user.js
-// @downloadURL  https://code.amazon.com/packages/AMXL_Internal_Scripts/blobs/mainline/--/performance-dashboard.user.js
+// @updateURL    https://github.com/giofede/amxl-performance-dashboard/raw/refs/heads/main/performance-dashboard.user.js
+// @downloadURL  https://github.com/giofede/amxl-performance-dashboard/raw/refs/heads/main/performance-dashboard.user.js
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setValue
 // @grant        GM_getValue
