@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Steering Performance Dashboard v2.7
-// @version      2.7
+// @version      2.7.1
 // @description  Full-screen dashboard with per-week targets, planned TPH, FC/SC/IXD, display toggles, historical lookup. v2.7: removed STM3/DTM3 (closed sites).
 // @author       PoC Draft
 // @match        https://fclm-portal.amazon.com/*
