@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Steering Performance Dashboard v2.7
-// @version      2.7.1
-// @description  Full-screen dashboard with per-week targets, planned TPH, FC/SC/IXD, display toggles, historical lookup. v2.7: removed STM3/DTM3 (closed sites).
+// @name         Steering Performance Dashboard v2.8
+// @version      2.8
+// @description  Full-screen dashboard with per-week targets, planned TPH, FC/SC/IXD, display toggles, historical lookup. v2.8: added "Copy as Database" tidy/long export for pivots.
 // @author       PoC Draft
 // @match        https://fclm-portal.amazon.com/*
 // @updateURL    https://github.com/giofede/amxl-performance-dashboard/raw/refs/heads/main/performance-dashboard.user.js
@@ -1207,7 +1207,7 @@
         if (!fcData?.length && !scData?.length && !ixdData?.length) return '<p class="spp-error-msg">No data. Select at least one site.</p>';
         const histLabel = (currentTab === 'historical') ? ` | \ud83d\udcc5 Historical: ${historicalYear}` : '';
         html += `<p class="spp-info">PPR TPH = Amtran Out / Transport Hrs | ${new Date().toLocaleString()}${histLabel}</p>`;
-        html += '<div style="text-align:center"><button class="spp-copy-btn" id="spp-copy-btn">\ud83d\udccb Copy to Clipboard</button></div>';
+        html += '<div style="text-align:center"><button class="spp-copy-btn" id="spp-copy-btn">\ud83d\udccb Copy to Clipboard</button><button class="spp-copy-btn" id="spp-db-btn" style="margin-left:8px">\ud83d\uddc4\ufe0f Copy as Database</button></div>';
         return html;
     }
 
@@ -1255,13 +1255,13 @@
         }
         if (!fcData?.length && !scData?.length && !ixdData?.length) return '<p class="spp-error-msg">No data. Select at least one site.</p>';
         html += `<p class="spp-info">Daily view W${wNum} | ${new Date().toLocaleString()}</p>`;
-        html += '<div style="text-align:center"><button class="spp-copy-btn" id="spp-copy-btn">\ud83d\udccb Copy to Clipboard</button></div>';
+        html += '<div style="text-align:center"><button class="spp-copy-btn" id="spp-copy-btn">\ud83d\udccb Copy to Clipboard</button><button class="spp-copy-btn" id="spp-db-btn" style="margin-left:8px">\ud83d\uddc4\ufe0f Copy as Database</button></div>';
         return html;
     }
 
     // ─── Dashboard UI ────────────────────────────────────────────────
 
-    let dashEl = null, currentTab = 'weekly', lastSCData = null, lastIXDData = null;
+    let dashEl = null, currentTab = 'weekly', lastSCData = null, lastIXDData = null, lastFCData = null, lastMode = 'weekly';
     let showDetails = false, showTargets = false, showAverages = false, showPlanned = false;
     let abortRequested = false;
     let historicalYear = new Date().getFullYear() - 1; // default to last year
@@ -1663,7 +1663,7 @@
             const { scData, ixdData } = await fetchWeeklyData(selectedSCs, selectedIXDs, weekStarts, (c, t) => {
                 const p = Math.round(c/t*100); pb.style.width = p+'%'; pt.textContent = `${p}% (${c}/${t})`;
             });
-            lastSCData = scData; lastIXDData = ixdData;
+            lastSCData = scData; lastIXDData = ixdData; lastFCData = fcData; lastMode = 'weekly';
             // In historical mode, suppress targets and plan (they don't apply to past years)
             const savedTargets = showTargets, savedPlanned = showPlanned;
             if (currentTab === 'historical') { showTargets = false; showPlanned = false; }
@@ -1672,6 +1672,8 @@
             initChartsAfterRender(fcData, scData, ixdData, 'weekly');
             const copyBtn = document.getElementById('spp-copy-btn');
             if (copyBtn) copyBtn.addEventListener('click', handleWeeklyCopy);
+            const dbBtn = document.getElementById('spp-db-btn');
+            if (dbBtn) dbBtn.addEventListener('click', handleDBExport);
             st.textContent = `\u2705 ${selectedFCs.length} FCs + ${scData.length} SCs + ${ixdData.length} IXD \u00d7 ${weekStarts.length} week(s)`;
         } catch (e) {
             main.innerHTML = `<div class="spp-error-msg">\u274c ${e.message}</div>`;
@@ -1784,10 +1786,11 @@
             }
 
             html += `<p class="spp-info">Daily view ${weekLabels} | ${new Date().toLocaleString()}</p>`;
-            html += '<div style="text-align:center"><button class="spp-copy-btn" id="spp-copy-btn">\ud83d\udccb Copy to Clipboard</button></div>';
+            html += '<div style="text-align:center"><button class="spp-copy-btn" id="spp-copy-btn">\ud83d\udccb Copy to Clipboard</button><button class="spp-copy-btn" id="spp-db-btn" style="margin-left:8px">\ud83d\uddc4\ufe0f Copy as Database</button></div>';
 
             lastSCData = allSCData;
             lastIXDData = allIXDData;
+            lastFCData = allFCData; lastMode = 'daily';
             main.innerHTML = html;
 
             // Render combined charts
@@ -1813,6 +1816,8 @@
 
             const copyBtn = document.getElementById('spp-copy-btn');
             if (copyBtn) copyBtn.addEventListener('click', handleDailyCopy);
+            const dbBtn = document.getElementById('spp-db-btn');
+            if (dbBtn) dbBtn.addEventListener('click', handleDBExport);
 
             st.textContent = `\u2705 Daily: ${weekLabels} \u2013 ${selectedFCs.length} FCs + ${selectedSCs.length} SCs + ${selectedIXDs.length} IXD`;
         } catch (e) {
@@ -2029,6 +2034,61 @@
             document.body.removeChild(ta);
             const btns = main.querySelectorAll('.spp-copy-btn');
             btns.forEach(b => { b.textContent = '\u2705 Copied!'; setTimeout(() => { b.textContent = '\ud83d\udccb Copy to Clipboard'; }, 2000); });
+        });
+    }
+
+    // ─── Database (tidy/long) Export ─────────────────────────────────
+    // Builds one row per Site × Week × (Date) × Flow with a consistent
+    // schema so the output pastes straight into a pivot-ready DB tab:
+    //   Building | Site | Week | Date | Flow | Capacity | Hours | TPH
+    function buildDBExport() {
+        const header = ['Building', 'Site', 'Week', 'Date', 'Flow', 'Capacity', 'Hours', 'TPH', 'Target'];
+        const rows = [];
+
+        // Targets are Q3G current-year values; they don't apply to past years.
+        const inclTargets = (currentTab !== 'historical');
+        const tgt = (v) => (inclTargets && v && v > 0) ? v : '';
+
+        // Returns [capacity, hours, tph] as strings; blanks when no valid data.
+        const metric = (o) => {
+            if (!o || o.error || !(o.tph > 0)) return ['', '', ''];
+            return [o.units > 0 ? o.units : '', o.hours > 0 ? o.hours : '', o.tph];
+        };
+        const addSC = (site, wNum, date, ppr) => rows.push(['SC', site, wNum, date, 'Transport', ...metric(ppr), tgt(getSCTargetForWeek(site, wNum))]);
+        const addFC = (site, wNum, date, ib, ob) => {
+            rows.push(['FC', site, wNum, date, 'Inbound', ...metric(ib), tgt(getFCTargetForWeek(site, wNum, 'ib'))]);
+            rows.push(['FC', site, wNum, date, 'Outbound', ...metric(ob), tgt(getFCTargetForWeek(site, wNum, 'ob'))]);
+        };
+        const addIXD = (site, wNum, date, inbound, da) => {
+            rows.push(['IXD', site, wNum, date, 'Inbound', ...metric(inbound), tgt(getIXDTargetForWeek(site, wNum, 'ib'))]);
+            rows.push(['IXD', site, wNum, date, 'DA', ...metric(da), tgt(getIXDTargetForWeek(site, wNum, 'da'))]);
+        };
+
+        if (lastMode === 'daily') {
+            (lastFCData || []).forEach(wk => (wk.fcData || []).forEach(s => s.days.forEach(d => addFC(s.sc, wk.wNum, d.label, d.ib, d.ob))));
+            (lastSCData || []).forEach(wk => (wk.scData || []).forEach(s => s.days.forEach(d => addSC(s.sc, wk.wNum, d.label, d.ppr))));
+            (lastIXDData || []).forEach(wk => (wk.ixdData || []).forEach(s => s.days.forEach(d => addIXD(s.sc, wk.wNum, d.label, d.inbound, d.da))));
+        } else {
+            (lastFCData || []).forEach(s => s.weeks.forEach(w => addFC(s.sc, w.wNum, '', w.ib, w.ob)));
+            (lastSCData || []).forEach(s => s.weeks.forEach(w => addSC(s.sc, w.wNum, '', w.ppr)));
+            (lastIXDData || []).forEach(s => s.weeks.forEach(w => addIXD(s.sc, w.wNum, '', w.inbound, w.da)));
+        }
+
+        const lines = [header.join('\t')];
+        rows.forEach(r => lines.push(r.join('\t')));
+        return lines.join('\n');
+    }
+
+    function handleDBExport() {
+        const tsv = buildDBExport();
+        const btn = document.getElementById('spp-db-btn');
+        const done = () => { if (btn) { btn.textContent = '\u2705 Copied!'; setTimeout(() => { btn.textContent = '\ud83d\uddc4\ufe0f Copy as Database'; }, 2000); } };
+        navigator.clipboard.writeText(tsv).then(done).catch(() => {
+            const ta = document.createElement('textarea');
+            ta.value = tsv; ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+            document.body.removeChild(ta);
+            done();
         });
     }
 
