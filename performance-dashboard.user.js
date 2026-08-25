@@ -42,10 +42,10 @@
         LTN7: {21:{ib:12.16,ob:10.87},22:{ib:12.16,ob:10.87},23:{ib:12.37,ob:11.05},24:{ib:12.37,ob:11.05},25:{ib:12.37,ob:11.05},26:{ib:12.37,ob:11.05},27:{ib:12.30,ob:11.65},28:{ib:12.12,ob:11.65},29:{ib:12.39,ob:11.65},30:{ib:12.22,ob:11.65},31:{ib:12.18,ob:11.65},32:{ib:11.90,ob:11.65},33:{ib:12.02,ob:11.64},34:{ib:11.83,ob:11.64},35:{ib:11.88,ob:11.65},36:{ib:12.10,ob:11.64},37:{ib:12.26,ob:11.65},38:{ib:12.10,ob:11.65},39:{ib:12.19,ob:11.65},40:{ib:12.43,ob:11.65},41:{ib:12.31,ob:11.68},42:{ib:12.58,ob:11.64},43:{ib:12.67,ob:11.65},44:{ib:12.45,ob:11.65},45:{ib:12.61,ob:12.23},46:{ib:12.65,ob:12.23},47:{ib:12.65,ob:12.24},48:{ib:12.26,ob:12.26},49:{ib:12.26,ob:11.84},50:{ib:12.44,ob:11.65},51:{ib:12.05,ob:11.65},52:{ib:11.83,ob:11.64},53:{ib:11.57,ob:11.68}},
         DSA7: {21:{ib:18.17,ob:10.30},22:{ib:18.17,ob:10.30},23:{ib:18.19,ob:10.72},24:{ib:18.19,ob:10.72},25:{ib:18.19,ob:10.72},26:{ib:18.19,ob:10.72},27:{ib:16.08,ob:8.99},28:{ib:15.35,ob:8.98},29:{ib:14.98,ob:8.98},30:{ib:15.81,ob:8.98},31:{ib:15.61,ob:9.12},32:{ib:14.54,ob:10.04},33:{ib:16.41,ob:10.04},34:{ib:15.90,ob:10.04},35:{ib:14.87,ob:10.04},36:{ib:14.80,ob:10.16},37:{ib:14.99,ob:10.21},38:{ib:14.39,ob:10.21},39:{ib:15.22,ob:10.21},40:{ib:11.27,ob:9.14},41:{ib:7.80,ob:8.08},42:{ib:8.02,ob:8.01},43:{ib:8.28,ob:8.01},44:{ib:8.10,ob:8.01},45:{ib:10.66,ob:8.74},46:{ib:10.81,ob:8.75},47:{ib:10.64,ob:8.77},48:{ib:9.91,ob:8.80},49:{ib:12.67,ob:8.67},50:{ib:13.91,ob:8.58},51:{ib:13.12,ob:8.58},52:{ib:11.67,ob:8.57},53:{ib:11.05,ob:8.62}}
     };
-    // IXD targets: empty for now (no Q3G values yet)
+    // IXD targets: { site: { weekNum: { ib, da } } } — Q3G, flat W33–W53
     const Q3G_IXD = {
-        XLI7: {},
-        XFR7: {}
+        XLI7: {33:{ib:21.7,da:32.5},34:{ib:21.7,da:32.5},35:{ib:21.7,da:32.5},36:{ib:21.7,da:32.5},37:{ib:21.7,da:32.5},38:{ib:21.7,da:32.5},39:{ib:21.7,da:32.5},40:{ib:21.7,da:32.5},41:{ib:21.7,da:32.5},42:{ib:21.7,da:32.5},43:{ib:21.7,da:32.5},44:{ib:21.7,da:32.5},45:{ib:21.7,da:32.5},46:{ib:21.7,da:32.5},47:{ib:21.7,da:32.5},48:{ib:21.7,da:32.5},49:{ib:21.7,da:32.5},50:{ib:21.7,da:32.5},51:{ib:21.7,da:32.5},52:{ib:21.7,da:32.5},53:{ib:21.7,da:32.5}},
+        XFR7: {33:{ib:23.8,da:54.5},34:{ib:23.8,da:54.5},35:{ib:23.8,da:54.5},36:{ib:23.8,da:54.5},37:{ib:23.8,da:54.5},38:{ib:23.8,da:54.5},39:{ib:23.8,da:54.5},40:{ib:23.8,da:54.5},41:{ib:23.8,da:54.5},42:{ib:23.8,da:54.5},43:{ib:23.8,da:54.5},44:{ib:23.8,da:54.5},45:{ib:23.8,da:54.5},46:{ib:23.8,da:54.5},47:{ib:23.8,da:54.5},48:{ib:23.8,da:54.5},49:{ib:23.8,da:54.5},50:{ib:23.8,da:54.5},51:{ib:23.8,da:54.5},52:{ib:23.8,da:54.5},53:{ib:23.8,da:54.5}}
     };
 
     // Sidebar editable targets (current week, resets on reload)
@@ -1412,14 +1412,14 @@
                     <div class="spp-filter-group">
                         <div class="spp-filter-group-title">\ud83c\udfaf Targets (FC) \u2014 W${getCurrentWeekNumber()}</div>
                         <div class="spp-target-grid" id="spp-fc-op2-grid">
-                            <span class="spp-target-label" style="grid-column:1;font-size:10px;opacity:.6"></span><span style="display:flex;gap:4px;font-size:9px;color:#555"><span style="flex:1;text-align:center">IB</span><span style="flex:1;text-align:center">OB</span></span>
+                            <span class="spp-target-label" style="grid-column:1;font-size:10px;opacity:.6"></span><span style="display:flex;gap:4px;font-size:9px;color:#888"><span style="width:50px;text-align:center">IB</span><span style="width:50px;text-align:center">OB</span></span>
                             ${FC_SITES.map(fc => `<span class="spp-target-label">${fc}</span><span style="display:flex;gap:4px"><input class="spp-target-input" data-fc-ib="${fc}" type="number" step="0.1" value="${sidebarFCTarget.ib[fc] || ''}"><input class="spp-target-input" data-fc-ob="${fc}" type="number" step="0.1" value="${sidebarFCTarget.ob[fc] || ''}"></span>`).join('')}
                         </div>
                     </div>
                     <div class="spp-filter-group">
                         <div class="spp-filter-group-title">\ud83c\udfaf Targets (IXD) \u2014 W${getCurrentWeekNumber()}</div>
                         <div class="spp-target-grid" id="spp-ixd-target-grid">
-                            <span class="spp-target-label" style="grid-column:1;font-size:10px;opacity:.6"></span><span style="display:flex;gap:4px;font-size:9px;color:#555"><span style="flex:1;text-align:center">IB</span><span style="flex:1;text-align:center">DA</span></span>
+                            <span class="spp-target-label" style="grid-column:1;font-size:10px;opacity:.6"></span><span style="display:flex;gap:4px;font-size:9px;color:#888"><span style="width:50px;text-align:center">IB</span><span style="width:50px;text-align:center">DA</span></span>
                             ${IXD_SITES.map(s => `<span class="spp-target-label">${s}</span><span style="display:flex;gap:4px"><input class="spp-target-input" data-ixd-ib="${s}" type="number" step="0.1" value="${sidebarIXDTarget.ib[s] || ''}"><input class="spp-target-input" data-ixd-da="${s}" type="number" step="0.1" value="${sidebarIXDTarget.da[s] || ''}"></span>`).join('')}
                         </div>
                     </div>
