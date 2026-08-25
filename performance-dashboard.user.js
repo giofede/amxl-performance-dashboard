@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Steering Performance Dashboard v2.8
-// @version      2.8
-// @description  Full-screen dashboard with per-week targets, planned TPH, FC/SC/IXD, display toggles, historical lookup. v2.8: added "Copy as Database" tidy/long export for pivots.
+// @name         Steering Performance Dashboard v2.9
+// @version      2.9.1
+// @description  Full-screen dashboard with per-week targets, planned TPH, FC/SC/IXD, display toggles, historical lookup. v2.8: "Copy as Database" tidy/long export. v2.9: "Export PDF" (results only) scaled to fit a single page.
 // @author       PoC Draft
 // @match        https://fclm-portal.amazon.com/*
 // @updateURL    https://github.com/giofede/amxl-performance-dashboard/raw/refs/heads/main/performance-dashboard.user.js
@@ -10,6 +10,8 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @require      https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js
+// @require      https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js
+// @require      https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js
 // @connect      fclm-portal.amazon.com
 // ==/UserScript==
 
@@ -974,6 +976,36 @@
         .spp-empty-state p{font-size:13px;max-width:400px;margin:0 auto}
         .spp-year-select{background:var(--spp-bg-tertiary);border:1px solid var(--spp-border);color:var(--spp-text-primary);padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer;outline:none}
         .spp-year-select:focus{border-color:var(--spp-accent)}
+        /* Light, ink-friendly theme applied only while capturing the PDF snapshot */
+        .spp-pdf-capture { background: #ffffff !important; padding: 12px !important; overflow: visible !important; height: auto !important; }
+        .spp-pdf-capture, .spp-pdf-capture * { color: #111 !important; }
+        /* Force all scrollable areas open so nothing is clipped in the snapshot */
+        .spp-pdf-capture .spp-table-container, .spp-pdf-capture .spp-main { overflow: visible !important; max-height: none !important; height: auto !important; }
+        /* Let the two-column grids size each row to its tallest content (no clipping) */
+        .spp-pdf-capture .spp-ixd-charts { grid-auto-rows: min-content !important; align-items: start !important; }
+        /* html2canvas mishandles position:sticky (pins headers/first column to wrong spot,
+           causing the top group-header row to look cropped). Force static during capture. */
+        .spp-pdf-capture .spp-table thead th,
+        .spp-pdf-capture .spp-table tbody td:first-child,
+        .spp-pdf-capture .spp-table thead th:first-child,
+        .spp-pdf-capture .spp-table thead tr:first-child th:first-child { position: static !important; }
+        .spp-pdf-capture .spp-section-title, .spp-pdf-capture .spp-chart-title { color: #000 !important; }
+        .spp-pdf-capture .spp-table-container, .spp-pdf-capture .spp-chart-section { background: #fff !important; border: 1px solid #ccc !important; overflow: visible !important; }
+        .spp-pdf-capture .spp-table thead th { background: #f0f0f0 !important; color: #000 !important; border-bottom: 2px solid #999 !important; }
+        .spp-pdf-capture .spp-table th, .spp-pdf-capture .spp-table td { border-bottom: 1px solid #ddd !important; }
+        .spp-pdf-capture .spp-table .spp-divider { border-left: 2px solid #bbb !important; }
+        .spp-pdf-capture .spp-table tbody td:first-child { background: #fff !important; border-right: 2px solid #bbb !important; }
+        .spp-pdf-capture .spp-table .spp-tph-cell { color: #1a56b0 !important; }
+        .spp-pdf-capture .spp-table .spp-vs-green, .spp-pdf-capture .spp-table .spp-tph-green { color: #157347 !important; }
+        .spp-pdf-capture .spp-table .spp-vs-yellow, .spp-pdf-capture .spp-table .spp-tph-yellow { color: #997404 !important; }
+        .spp-pdf-capture .spp-table .spp-vs-red, .spp-pdf-capture .spp-table .spp-tph-red { color: #b02a37 !important; }
+        .spp-pdf-capture .spp-table .spp-avg-cell { color: #555 !important; }
+        .spp-pdf-capture .spp-info { color: #444 !important; }
+        /* Hide interactive chart controls (the site toggle "pills") in the snapshot */
+        .spp-pdf-capture .spp-chart-toggles { display: none !important; }
+        /* Ensure chart wrappers don't clip their canvas during capture */
+        .spp-pdf-capture .spp-chart-canvas-wrap, .spp-pdf-capture .spp-ixd-chart-wrap { overflow: visible !important; }
+        .spp-pdf-capture .spp-chart-section { break-inside: avoid; }
     `;
     const styleEl = document.createElement('style');
     styleEl.textContent = styles;
@@ -1207,7 +1239,7 @@
         if (!fcData?.length && !scData?.length && !ixdData?.length) return '<p class="spp-error-msg">No data. Select at least one site.</p>';
         const histLabel = (currentTab === 'historical') ? ` | \ud83d\udcc5 Historical: ${historicalYear}` : '';
         html += `<p class="spp-info">PPR TPH = Amtran Out / Transport Hrs | ${new Date().toLocaleString()}${histLabel}</p>`;
-        html += '<div style="text-align:center"><button class="spp-copy-btn" id="spp-copy-btn">\ud83d\udccb Copy to Clipboard</button><button class="spp-copy-btn" id="spp-db-btn" style="margin-left:8px">\ud83d\uddc4\ufe0f Copy as Database</button></div>';
+        html += '<div style="text-align:center"><button class="spp-copy-btn" id="spp-copy-btn">\ud83d\udccb Copy to Clipboard</button><button class="spp-copy-btn" id="spp-db-btn" style="margin-left:8px">\ud83d\uddc4\ufe0f Copy as Database</button><button class="spp-copy-btn" id="spp-pdf-btn" style="margin-left:8px">\ud83d\udcc4 Export PDF</button></div>';
         return html;
     }
 
@@ -1255,7 +1287,7 @@
         }
         if (!fcData?.length && !scData?.length && !ixdData?.length) return '<p class="spp-error-msg">No data. Select at least one site.</p>';
         html += `<p class="spp-info">Daily view W${wNum} | ${new Date().toLocaleString()}</p>`;
-        html += '<div style="text-align:center"><button class="spp-copy-btn" id="spp-copy-btn">\ud83d\udccb Copy to Clipboard</button><button class="spp-copy-btn" id="spp-db-btn" style="margin-left:8px">\ud83d\uddc4\ufe0f Copy as Database</button></div>';
+        html += '<div style="text-align:center"><button class="spp-copy-btn" id="spp-copy-btn">\ud83d\udccb Copy to Clipboard</button><button class="spp-copy-btn" id="spp-db-btn" style="margin-left:8px">\ud83d\uddc4\ufe0f Copy as Database</button><button class="spp-copy-btn" id="spp-pdf-btn" style="margin-left:8px">\ud83d\udcc4 Export PDF</button></div>';
         return html;
     }
 
@@ -1674,6 +1706,8 @@
             if (copyBtn) copyBtn.addEventListener('click', handleWeeklyCopy);
             const dbBtn = document.getElementById('spp-db-btn');
             if (dbBtn) dbBtn.addEventListener('click', handleDBExport);
+            const pdfBtn = document.getElementById('spp-pdf-btn');
+            if (pdfBtn) pdfBtn.addEventListener('click', handlePDFExport);
             st.textContent = `\u2705 ${selectedFCs.length} FCs + ${scData.length} SCs + ${ixdData.length} IXD \u00d7 ${weekStarts.length} week(s)`;
         } catch (e) {
             main.innerHTML = `<div class="spp-error-msg">\u274c ${e.message}</div>`;
@@ -1786,7 +1820,7 @@
             }
 
             html += `<p class="spp-info">Daily view ${weekLabels} | ${new Date().toLocaleString()}</p>`;
-            html += '<div style="text-align:center"><button class="spp-copy-btn" id="spp-copy-btn">\ud83d\udccb Copy to Clipboard</button><button class="spp-copy-btn" id="spp-db-btn" style="margin-left:8px">\ud83d\uddc4\ufe0f Copy as Database</button></div>';
+            html += '<div style="text-align:center"><button class="spp-copy-btn" id="spp-copy-btn">\ud83d\udccb Copy to Clipboard</button><button class="spp-copy-btn" id="spp-db-btn" style="margin-left:8px">\ud83d\uddc4\ufe0f Copy as Database</button><button class="spp-copy-btn" id="spp-pdf-btn" style="margin-left:8px">\ud83d\udcc4 Export PDF</button></div>';
 
             lastSCData = allSCData;
             lastIXDData = allIXDData;
@@ -1818,6 +1852,8 @@
             if (copyBtn) copyBtn.addEventListener('click', handleDailyCopy);
             const dbBtn = document.getElementById('spp-db-btn');
             if (dbBtn) dbBtn.addEventListener('click', handleDBExport);
+            const pdfBtn = document.getElementById('spp-pdf-btn');
+            if (pdfBtn) pdfBtn.addEventListener('click', handlePDFExport);
 
             st.textContent = `\u2705 Daily: ${weekLabels} \u2013 ${selectedFCs.length} FCs + ${selectedSCs.length} SCs + ${selectedIXDs.length} IXD`;
         } catch (e) {
@@ -2090,6 +2126,144 @@
             document.body.removeChild(ta);
             done();
         });
+    }
+
+    // ─── PDF Export (print only the results area) ────────────────────
+    // Uses the @media print stylesheet, which hides the sidebar/header/buttons
+    // and switches the results to a light, ink-friendly theme. Charts are
+    // canvas-based so they print as rendered. The document title is set so the
+    // browser's "Save as PDF" suggests a sensible filename.
+    async function handlePDFExport() {
+        const btn = document.getElementById('spp-pdf-btn');
+        const main = document.getElementById('spp-main');
+        if (!main) return;
+
+        const stamp = new Date().toISOString().slice(0, 10);
+        const modeLabel = (lastMode === 'daily') ? 'Daily' : (currentTab === 'historical' ? `Historical-${historicalYear}` : 'Weekly');
+        const fileName = `Performance Dashboard - ${modeLabel} - ${stamp}.pdf`;
+
+        // Libraries provided via @require
+        const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
+        if (typeof html2canvas !== 'function' || !jsPDFCtor) {
+            alert('PDF libraries failed to load. Check your network/userscript @require lines.');
+            return;
+        }
+
+        if (btn) { btn.textContent = '\ud83d\udcc4 Building PDF\u2026'; btn.disabled = true; }
+
+        // Hide the action buttons in the capture (but keep tables/charts)
+        const actionBar = btn ? btn.parentElement : null;
+        const prevActionDisplay = actionBar ? actionBar.style.display : null;
+        if (actionBar) actionBar.style.display = 'none';
+
+        // Force a light, ink-friendly theme just for the snapshot
+        main.classList.add('spp-pdf-capture');
+
+        // Build a summary header (filters + display options) shown only in the PDF
+        const summaryEl = buildPDFSummaryHeader(modeLabel);
+        if (summaryEl) main.insertBefore(summaryEl, main.firstChild);
+
+        // Reset scroll so html2canvas captures from the top-left origin
+        main.scrollTop = 0; main.scrollLeft = 0;
+
+        // Charts are responsive; hiding the toggle pills changes header geometry,
+        // so re-lay-out every chart instance before the snapshot to avoid clipping.
+        const chartInstances = [scChartInstance, ixdIBChartInstance, ixdDAChartInstance, fcIBChartInstance, fcOBChartInstance];
+
+        try {
+            // Wait for the capture-mode styles (unstick headers, open overflow,
+            // grid row sizing, hidden toggles) to apply, then resize charts and
+            // let the layout settle before snapshot.
+            await new Promise(r => setTimeout(r, 150));
+            chartInstances.forEach(c => { try { if (c) c.resize(); } catch (_) {} });
+            await new Promise(r => setTimeout(r, 250));
+
+            const fullW = main.scrollWidth;
+            const fullH = main.scrollHeight;
+            const canvas = await html2canvas(main, {
+                backgroundColor: '#ffffff',
+                scale: 1.5,             // enough for crisp text, far fewer pixels than 2x
+                useCORS: true,
+                logging: false,
+                scrollX: 0,
+                scrollY: 0,
+                x: 0,
+                y: 0,
+                width: fullW,
+                height: fullH,
+                windowWidth: fullW,
+                windowHeight: fullH
+            });
+
+            // Build a page sized to the snapshot's own aspect ratio so there's no
+            // wasted blank space on the sides. We fix the content width and derive
+            // the page height from the image ratio (single page, tight fit).
+            const margin = 8; // mm
+            const imgRatio = canvas.width / canvas.height; // width / height
+            const contentW = 277;                 // ~A4 landscape printable width (mm)
+            const pageW = contentW + margin * 2;
+            const drawW = contentW;
+            const drawH = drawW / imgRatio;
+            const pageH = drawH + margin * 2;
+
+            const pdf = new jsPDFCtor({
+                orientation: (pageW >= pageH) ? 'landscape' : 'portrait',
+                unit: 'mm',
+                format: [pageW, pageH]
+            });
+
+            // JPEG (quality 0.85) instead of PNG keeps the file small. Text stays
+            // readable on a white background; PNG was lossless and 5-10x heavier.
+            const imgData = canvas.toDataURL('image/jpeg', 0.85);
+            pdf.addImage(imgData, 'JPEG', margin, margin, drawW, drawH, undefined, 'FAST');
+            pdf.save(fileName);
+        } catch (e) {
+            alert('PDF export failed: ' + e.message);
+        } finally {
+            const hdr = document.getElementById('spp-pdf-summary');
+            if (hdr) hdr.remove();
+            main.classList.remove('spp-pdf-capture');
+            if (actionBar) actionBar.style.display = prevActionDisplay || '';
+            if (btn) { btn.textContent = '\ud83d\udcc4 Export PDF'; btn.disabled = false; }
+        }
+    }
+
+    // Builds the summary header injected at the top of the PDF snapshot.
+    // Lists the selected sites, the weeks in scope, and which display options
+    // are enabled. Returns a detached element (removed again after capture).
+    function buildPDFSummaryHeader(modeLabel) {
+        try {
+            const fcs = getSelectedFCs();
+            const scs = getSelectedSCs();
+            const ixds = getSelectedIXDs();
+            const allSites = [...fcs, ...scs, ...ixds];
+
+            const weekNums = Array.from(dashEl.querySelectorAll('.spp-chip[data-week].selected'))
+                .map(c => parseInt(c.dataset.week)).sort((a, b) => a - b);
+            const weeksLabel = weekNums.length ? weekNums.map(w => `W${w}`).join(', ') : '\u2013';
+
+            const includes = [];
+            if (showDetails) includes.push('Details (Cap/Hrs)');
+            if (showTargets) includes.push('vs Target');
+            if (showAverages) includes.push('L4W avg');
+            if (showPlanned) includes.push('vs Plan');
+            const includeLabel = includes.length ? includes.join(', ') : 'None';
+
+            const yearLabel = (currentTab === 'historical') ? ` ${historicalYear}` : '';
+
+            const el = document.createElement('div');
+            el.id = 'spp-pdf-summary';
+            el.style.cssText = 'margin:0 0 14px 0;padding:10px 14px;border:1px solid #ccc;border-radius:8px;background:#f7f8fa;font-size:12px;line-height:1.6;color:#111;';
+            el.innerHTML =
+                `<div style="font-size:15px;font-weight:700;margin-bottom:4px;color:#000">Performance Dashboard \u2014 ${modeLabel}${yearLabel}</div>` +
+                `<div><strong>Sites:</strong> ${allSites.length ? allSites.join(', ') : '\u2013'}</div>` +
+                `<div><strong>Weeks:</strong> ${weeksLabel}</div>` +
+                `<div><strong>Include:</strong> ${includeLabel}</div>` +
+                `<div style="color:#555;margin-top:2px">Generated ${new Date().toLocaleString()}</div>`;
+            return el;
+        } catch (_) {
+            return null;
+        }
     }
 
     // ─── Entry Point ─────────────────────────────────────────────────
